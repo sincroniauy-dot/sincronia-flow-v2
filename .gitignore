@@ -1,0 +1,8 @@
+# Node
+node_modules
+.next
+
+# Env y credenciales
+.env
+*.json
+!package.json
