@@ -1,3 +1,8 @@
+# Sincronía Flow v2
+
+[![CI](https://github.com/sincroniauy-dot/sincronia-flow-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/sincroniauy-dot/sincronia-flow-v2/actions)
+
+CRM de cobranzas (Next.js 14 + TS + Firebase).
 # Sincronía Flow v2 — Documentación del Proyecto
 
 **Stack**: Next.js 14 (App Router) + TypeScript + Firebase (Auth, Firestore, Admin SDK).  
