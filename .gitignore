@@ -1,9 +1,15 @@
 # Node
-node_modules
-.next
+node_modules/
+.next/
 
-# Env y credenciales
+# Env y credenciales (sensibles)
 .env
-*.json
-!package.json
 token.txt
+serviceAccount*.json
+firebase-service-account*.json
+credentials*.json
+
+# Permitidos (necesarios en el repo)
+!package.json
+!package-lock.json
+!firestore.indexes.json
