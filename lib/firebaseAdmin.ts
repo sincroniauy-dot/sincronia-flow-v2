@@ -1,36 +1,47 @@
 // lib/firebaseAdmin.ts
-import admin from "firebase-admin";
+// Inicializa Firebase Admin una sola vez al importarlo.
+// Requiere FIREBASE_SERVICE_ACCOUNT en .env (JSON en UNA LÍNEA; private_key con \n).
 
-let app: admin.app.App | undefined;
+import { getApps, initializeApp, cert, applicationDefault } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
-function getServiceAccountFromEnv() {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error("FIREBASE_SERVICE_ACCOUNT not set");
+function initAdmin() {
+  if (getApps().length) return; // ya inicializado
+
+  const svcJSON = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID; // opcional como fallback
+
+  if (!svcJSON) {
+    initializeApp({ credential: applicationDefault() });
+    return;
+  }
+
+  let svc: any;
   try {
-    // Viene como una sola línea. Parseamos a objeto:
-    return JSON.parse(raw);
+    svc = JSON.parse(svcJSON);
   } catch (e) {
-    // Si alguien pegó comillas de más, intentamos limpiar:
-    const cleaned = raw.trim().replace(/^"+|"+$/g, "");
-    return JSON.parse(cleaned);
+    throw new Error("FIREBASE_SERVICE_ACCOUNT no es un JSON válido (una sola línea).");
   }
-}
 
-export function getAdminApp() {
-  if (app) return app;
-  if (admin.apps.length) {
-    app = admin.app();
-    return app;
+  const privateKey = String(svc.private_key || "").replace(/\\n/g, "\n");
+  const clientEmail = svc.client_email;
+  const pid = svc.project_id || projectId;
+
+  if (!privateKey || !clientEmail || !pid) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT incompleto: se requieren project_id, client_email y private_key.");
   }
-  const sa = getServiceAccountFromEnv();
 
-  // Evita “duplicate app” en dev hot-reload
-  app = admin.initializeApp({
-    credential: admin.credential.cert(sa as admin.ServiceAccount),
+  initializeApp({
+    credential: cert({
+      projectId: pid,
+      clientEmail,
+      privateKey,
+    }),
   });
-  return app;
 }
 
-export function getFirestore() {
-  return getAdminApp().firestore();
-}
+initAdmin();
+
+export const adminDb = getFirestore();
+export const adminAuth = getAuth();
