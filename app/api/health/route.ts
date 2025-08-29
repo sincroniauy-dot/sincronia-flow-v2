@@ -1,22 +1,21 @@
 // app/api/health/route.ts
+import "@/lib/firebaseAdmin";
+import { getApps, getApp } from "firebase-admin/app";
 import { NextResponse } from "next/server";
-import { getFirestore } from "../../../lib/firebaseAdmin";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const t0 = Date.now();
   try {
-    const db = getFirestore();
-    // Usar colección normal (no __reservados__)
-    await db.doc("health/ping").get();
-    const latencyMs = Date.now() - t0;
-    return NextResponse.json({ ok: true, firestore: "connected", latencyMs });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, firestore: "error", message: err?.message ?? String(err) },
-      { status: 500 }
-    );
+    const app = getApps().length ? getApp() : null;
+    const projectId =
+      (app?.options?.credential as any)?.projectId ||
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+      "unknown";
+
+    return NextResponse.json({ ok: true, projectId }, { status: 200 });
+  } catch (e) {
+    console.error("health error:", e);
+    return NextResponse.json({ ok: false, error: "HEALTH_FAIL" }, { status: 500 });
   }
 }
