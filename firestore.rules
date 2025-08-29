@@ -1,54 +1,48 @@
-// firestore.rules
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() { return request.auth != null; }
-    function uid() { return request.auth.uid; }
 
-    match /users/{userId} {
-      allow read: if isSignedIn() && userId == uid();
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function hasRole(r) {
+      return request.auth != null &&
+             (request.auth.token.role == r ||
+              (r in (request.auth.token.roles != null ? request.auth.token.roles : [])));
+    }
+
+    // Auditoría: solo admins pueden leer; nadie puede escribir desde cliente
+    match /auditLogs/{doc} {
+      allow read: if hasRole('admin');
       allow write: if false;
     }
 
-    match /cases/{caseId} {
-      allow read: if isSignedIn() && (
-        // gestores: solo sus casos
-        resource.data.assignedTo == uid() ||
-        // admin/supervisor: via custom claims
-        (request.auth.token.role in ['admin', 'supervisor'])
-      );
-      // escritura solo para admin/supervisor (la app server hace cambios)
-      allow write: if isSignedIn() && (request.auth.token.role in ['admin', 'supervisor']);
-    }
-
-    match /payments/{paymentId} {
-      allow read: if isSignedIn() && (
-        (request.resource.data.caseId == null && resource.data.createdBy == uid()) || // lectura por 'createdBy'
-        (resource.data.createdBy == uid()) ||
-        (request.auth.token.role in ['admin','supervisor'])
-      );
-      // creación por gestor: solo si el case le pertenece (validación básica)
-      allow create: if isSignedIn() && (
-        (request.auth.token.role in ['admin','supervisor']) ||
-        (request.resource.data.createdBy == uid())
-      );
-      // updates desde cliente: deshabilitado (se hace por server)
-      allow update, delete: if false;
-    }
-
-    match /agreements/{agreementId} {
-      allow read: if isSignedIn(); // lectura abierta a usuarios autenticados (server filtra visibilidad real)
+    // Colecciones principales: lectura para usuarios autenticados; escritura solo vía API (Admin)
+    match /cases/{doc} {
+      allow read: if isAuth();
       allow write: if false;
     }
 
-    match /cancellations/{cancId} {
-      allow read: if isSignedIn();
+    match /payments/{doc} {
+      allow read: if isAuth();
       allow write: if false;
     }
 
-    match /auditLogs/{logId} {
-      allow read: if isSignedIn();
-      allow write: if false; // solo server
+    match /agreements/{doc} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    match /cancellations/{doc} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    // Denegar todo lo demás
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
