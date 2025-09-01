@@ -1,47 +1,39 @@
-// lib/firebaseAdmin.ts
-// Inicializa Firebase Admin una sola vez al importarlo.
-// Requiere FIREBASE_SERVICE_ACCOUNT en .env (JSON en UNA LÍNEA; private_key con \n).
-
-import { getApps, initializeApp, cert, applicationDefault } from "firebase-admin/app";
+﻿import { getApps, initializeApp, applicationDefault, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
-function initAdmin() {
-  if (getApps().length) return; // ya inicializado
+type ServiceAccount = {
+  project_id: string;
+  client_email: string;
+  private_key: string;
+};
 
-  const svcJSON = process.env.FIREBASE_SERVICE_ACCOUNT;
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID; // opcional como fallback
-
-  if (!svcJSON) {
-    initializeApp({ credential: applicationDefault() });
-    return;
+function buildCredential() {
+  const svc = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (svc) {
+    let sa: ServiceAccount;
+    try {
+      sa = JSON.parse(svc);
+    } catch (e: any) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT no es JSON válido: " + e?.message);
+    }
+    if (!sa.private_key || !sa.client_email) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT incompleto: falta private_key o client_email.");
+    }
+    // Normalizar \n a saltos reales y CRLF → LF
+    sa.private_key = sa.private_key.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+    return cert(sa as any);
   }
-
-  let svc: any;
-  try {
-    svc = JSON.parse(svcJSON);
-  } catch (e) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT no es un JSON válido (una sola línea).");
-  }
-
-  const privateKey = String(svc.private_key || "").replace(/\\n/g, "\n");
-  const clientEmail = svc.client_email;
-  const pid = svc.project_id || projectId;
-
-  if (!privateKey || !clientEmail || !pid) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT incompleto: se requieren project_id, client_email y private_key.");
-  }
-
-  initializeApp({
-    credential: cert({
-      projectId: pid,
-      clientEmail,
-      privateKey,
-    }),
-  });
+  // Si no hay FIREBASE_SERVICE_ACCOUNT, usar ADC (GOOGLE_APPLICATION_CREDENTIALS ya lo setaste)
+  return applicationDefault();
 }
 
-initAdmin();
+const app = getApps()[0] || initializeApp({
+  credential: buildCredential(),
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+});
 
-export const adminDb = getFirestore();
-export const adminAuth = getAuth();
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const bucket = getStorage(app).bucket();
