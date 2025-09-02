@@ -1,5 +1,6 @@
 // tests/helpers/auth.ts
-export async function signInTester() {
+
+export async function getIdToken(): Promise<string> {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY!;
   const email = "tester1@sincronia.test";
   const password = "S1ncro#123";
@@ -13,11 +14,15 @@ export async function signInTester() {
     }
   );
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`signIn fallo: ${res.status} ${body}`);
+    const msg = await res.text();
+    throw new Error("Auth failed: " + msg);
   }
   const json = await res.json();
-  const token: string = json.idToken;
-  const uid: string = json.localId;
-  return { token, uid, email };
+  return json.idToken as string;
+}
+
+// Shim para tests existentes que esperan signInTester()
+export async function signInTester(): Promise<{ token: string; email: string }> {
+  const token = await getIdToken();
+  return { token, email: "tester1@sincronia.test" };
 }

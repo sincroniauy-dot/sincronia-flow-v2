@@ -13,3 +13,7 @@ credentials*.json
 !package.json
 !package-lock.json
 !firestore.indexes.json
+tmp/
+keys/
+crm-sincro-v2-firebase-adminsdk-*.json
+*.pdf
