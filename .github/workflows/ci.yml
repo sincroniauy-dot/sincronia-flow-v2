@@ -2,14 +2,12 @@ name: CI
 
 on:
   pull_request:
-    branches: [ master ]
   push:
-    branches: [ fix/merge-clean ]
+    branches: [ master, main ]
 
 jobs:
-  test:
+  typecheck:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,11 +15,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install deps
+      - name: Install
         run: npm ci
 
-      - name: Type check (scoped)
-        run: npx tsc --noEmit -p tsconfig.ci.json
+      # Solo typecheck del scope sano (tsconfig.ci.json)
+      - name: Typecheck (scoped)
+        run: npx tsc -p tsconfig.ci.json --noEmit

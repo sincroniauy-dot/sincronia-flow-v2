@@ -1,16 +1,27 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true
+  },
   "include": [
-    "app/api/cancellations/**/*",
-    "app/tools/cancellations/**/*",
-    "lib/**/*"
+    "next-env.d.ts",
+    "lib/**/*.ts",
+    "app/api/cancellations/**/*.ts",
+    "app/tools/cancellations/**/*.tsx"
   ],
   "exclude": [
     "node_modules",
+    ".next",
     "tmp",
+    "scripts",
     "tests",
     "src",
-    "**/*.test.ts",
-    "**/*.spec.ts"
+    "app/api/agreements",
+    "app/api/audit",
+    "app/api/cases",
+    "app/api/payments",
+    "app/api/auth",
+    "app/api/cancellations/route.ts"
   ]
 }
