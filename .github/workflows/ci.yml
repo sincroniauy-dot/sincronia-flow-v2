@@ -1,16 +1,46 @@
 name: CI
+
 on:
+  push:
+    branches: [ master ]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Mantener el nombre "test" para que el check siga llamándose CI / test
   test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Temporary green check
-        run: echo "Skipping tests for this PR" && exit 0
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      # Type-check duro; si no hay script, usamos tsc directo
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # Lint opcional: si no existe el script, no falla
+      - name: Lint (optional)
+        run: npm run lint --if-present
+
+      # Build de Next para asegurarnos que compila
+      - name: Build
+        run: npm run build
+
+      # Tests opcionales: si no existe el script, no falla
+      - name: Tests (optional)
+        run: npm test --if-present
