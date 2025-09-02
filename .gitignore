@@ -17,3 +17,5 @@ tmp/
 keys/
 crm-sincro-v2-firebase-adminsdk-*.json
 *.pdf
+.env
+.env.local
