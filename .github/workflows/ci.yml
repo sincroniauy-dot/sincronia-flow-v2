@@ -6,7 +6,8 @@ on:
     branches: [ master, main ]
 
 jobs:
-  typecheck:
+  typecheck_scoped:
+    name: Typecheck (scoped)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,9 +19,9 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install
+      - name: Install deps
         run: npm ci
 
-      # Solo typecheck del scope sano (tsconfig.ci.json)
-      - name: Typecheck (scoped)
+      # SOLO tipa lo nuevo/bueno, evita legacy
+      - name: Typecheck (tsconfig.ci.json)
         run: npx tsc -p tsconfig.ci.json --noEmit
