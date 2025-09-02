@@ -1,89 +1,50 @@
-﻿param(
-  [string]$BaseUrl,
-  [string]$Email   = "tester@example.com",
-  [string]$Pass    = "Passw0rd-123!",
-  [string]$ApiKey  = "AIzaSyDxV2BjLqqKQHYURDwSQcgN9EBEvPXiyA4",
-  [string]$Id      = "demo-cancel-001"
+﻿<# 
+  Sincronia Flow - Test de documentos de cancelación
+  - Quita claves hardcodeadas (NO guardar secretos aquí).
+  - Usa variable de entorno FIREBASE_WEB_API_KEY o GOOGLE_API_KEY si existiera.
+  - No envía cabecera x-api-key si no hay valor.
+#>
+
+param(
+  [string]$BaseUrl = "http://localhost:3000",
+  [string]$CancellationId = "demo-cancel-001",
+  [string]$ApiKey = $(if ($env:FIREBASE_WEB_API_KEY) { $env:FIREBASE_WEB_API_KEY } elseif ($env:GOOGLE_API_KEY) { $env:GOOGLE_API_KEY } else { "" })
 )
 
-function Resolve-BaseUrl {
-  param([string[]]$Candidates)
-  foreach ($u in $Candidates) {
-    try {
-      $r = Invoke-WebRequest -Uri "$u/api/health" -TimeoutSec 2 -ErrorAction Stop
-      if ($r.StatusCode -eq 200) { return $u }
-    } catch { }
-  }
-  return $null
+$ErrorActionPreference = "Stop"
+
+# Cabeceras básicas
+$Headers = @{ "Content-Type" = "application/json" }
+if (-not [string]::IsNullOrWhiteSpace($ApiKey)) {
+  # Si algún día necesitás una API key del lado cliente, se envía aquí.
+  $Headers["x-api-key"] = $ApiKey
 }
 
-if (-not $BaseUrl) {
-  $BaseUrl = Resolve-BaseUrl @("http://localhost:3000", "http://localhost:3001")
-  if (-not $BaseUrl) {
-    Write-Host "❌ Server no responde en 3000/3001. Asegurate de correr 'npm run dev' y reintenta." -ForegroundColor Red
-    exit 1
-  }
-}
-Write-Host "➡️  Usando BaseUrl: $BaseUrl"
+$PreviewUrl = "$BaseUrl/api/cancellations/$CancellationId/docs/preview"
+$IssueUrl   = "$BaseUrl/api/cancellations/$CancellationId/docs/issue"
 
-# SignIn -> token
-$signin = Invoke-RestMethod -Method Post -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$ApiKey" `
-  -Headers @{ "Content-Type"="application/json" } `
-  -Body (@{ email=$Email; password=$Pass; returnSecureToken=$true } | ConvertTo-Json)
-$token = $signin.idToken
-"$Email → SignIn OK"
+# Carpeta de salida
+$OutDir = Join-Path $PSScriptRoot "out"
+New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
-$uriPrev  = "$BaseUrl/api/cancellations/$Id/docs/preview"
-$uriIssue = "$BaseUrl/api/cancellations/$Id/docs/issue"
+# 1) PREVIEW (GET -> PDF)
+$PreviewPath = Join-Path $OutDir "preview.pdf"
+Write-Host "Descargando preview desde: $PreviewUrl"
+Invoke-WebRequest -Uri $PreviewUrl -Headers $Headers -OutFile $PreviewPath -Method GET
+Write-Host "Preview guardado en: $PreviewPath"
+try { Start-Process $PreviewPath } catch { }
 
-# OPTIONS preview
-$res = Invoke-WebRequest -Method Options -Uri $uriPrev -Headers @{
-  Origin="http://localhost:3000"
-  "Access-Control-Request-Method"="GET"
-  "Access-Control-Request-Headers"="authorization"
-}
-"OPTIONS preview => $($res.StatusCode)"
+# 2) ISSUE (POST -> JSON con signedUrl)
+$Body = @{ templateVersion = "v1"; notes = "test via script" } | ConvertTo-Json -Compress
+Write-Host "Emitiendo documento en: $IssueUrl"
+$IssueResp = Invoke-RestMethod -Uri $IssueUrl -Headers $Headers -Method POST -Body $Body -ContentType "application/json"
 
-# GET preview (pdf + etag)
-New-Item -ItemType Directory -Force -Path "$PSScriptRoot\..\tmp" | Out-Null
-$pdf = Join-Path "$PSScriptRoot\..\tmp" "preview.pdf"
-$res = Invoke-WebRequest -Method Get -Uri $uriPrev -Headers @{
-  Authorization="Bearer $token"; Accept="application/pdf"
-} -OutFile $pdf -PassThru
-"GET preview => $($res.StatusCode)"; $etag = $res.Headers.ETag; "ETag: $etag"
+Write-Host "`nRespuesta (issue):"
+$IssueResp | ConvertTo-Json -Depth 8
 
-# GET preview con If-None-Match → 304/200
-if ($etag) {
-  try {
-    $null = Invoke-WebRequest -Method Get -Uri $uriPrev -Headers @{ Authorization="Bearer $token"; "If-None-Match"=$etag }
-    "GET preview If-None-Match => 200"
-  } catch {
-    $resp = $_.Exception.Response
-    if ($resp -and $resp.StatusCode.value__ -eq 304) { "GET preview If-None-Match => 304" } else { throw }
-  }
+if ($IssueResp.signedUrl) {
+  Write-Host "`nAbrir signedUrl temporal..."
+  try { Start-Process $IssueResp.signedUrl } catch { }
 }
 
-# OPTIONS issue
-$res = Invoke-WebRequest -Method Options -Uri $uriIssue -Headers @{
-  Origin="http://localhost:3000"
-  "Access-Control-Request-Method"="POST"
-  "Access-Control-Request-Headers"="authorization,content-type,if-match,if-none-match"
-}
-"OPTIONS issue => $($res.StatusCode)"
-
-# POST issue + descarga
-$body = @{ templateVersion="v1"; notes="Prueba automática" } | ConvertTo-Json -Depth 3
-$res = Invoke-RestMethod -Method Post -Uri $uriIssue -Headers @{
-  Authorization="Bearer $token"; "Content-Type"="application/json"
-} -Body $body
-
-# Compatibilidad PS5/PS7 (sin operador ??)
-$status = if ($res.PSObject.Properties.Match('status').Count -gt 0) { $res.status } else { 'OK' }
-"POST issue => $status"
-$res | ConvertTo-Json -Depth 8
-
-if ($res.signedUrl) {
-  $out = Join-Path "$PSScriptRoot\..\tmp" "cancellation_issued.pdf"
-  Invoke-WebRequest -Uri $res.signedUrl -OutFile $out
-  "Descarga emitido => OK ($out)"
-}
+Write-Host "`nListo."
