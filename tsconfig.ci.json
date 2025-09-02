@@ -2,26 +2,21 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "skipLibCheck": true
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["*"],
+      "@/lib/pdf": ["lib/pdf.ci.ts"],
+      "@/lib/audit": ["lib/audit.ci.ts"]
+    }
   },
   "include": [
-    "lib/firebaseAdmin.ts",
-    "lib/pdf.ts",
-    "lib/storage.ts",
-    "lib/cors.ts",
-    "lib/etag.ts",
-    "lib/audit.ts",
-    "app/api/cancellations/**/route.ts",
-    "app/tools/cancellations/**/page.tsx"
+    "app/api/cancellations/[id]/docs/issue/route.ts",
+    "app/api/cancellations/[id]/docs/preview/route.ts",
+    "lib/pdf.ci.ts",
+    "lib/audit.ci.ts"
   ],
   "exclude": [
     "node_modules",
-    "src/**",
-    "tests/**",
-    "app/api/auth/**",
-    "app/api/agreements/**",
-    "app/api/audit/**",
-    "app/api/cases/**",
-    "app/api/payments/**"
+    "tests"
   ]
 }
