@@ -84,15 +84,14 @@ export async function GET(
       { templateVersion: "v1", etag: stableEtag }
     );
 
-    return new Response(pdfBytes, {
-      status: 200,
-      headers: {
-        ...headers,
-        ETag: `"${stableEtag}"`,
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="cancellation_${cancellationId}_preview.pdf"`,
-      },
-    });
+    return new Response(Buffer.from(pdfBytes), {
+  headers: {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `inline; filename="${fileName}"`,
+    "ETag": etag
+  }
+});
+
   } catch (err: any) {
     const status = err?.status || 500;
     const body = { error: err?.message || "Internal error", details: err?.details || String(err) };

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "app/api/cancellations/**/*",
+    "app/tools/cancellations/**/*",
+    "lib/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "tmp",
+    "tests",
+    "src",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

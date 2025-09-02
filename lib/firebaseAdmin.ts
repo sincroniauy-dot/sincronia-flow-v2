@@ -69,3 +69,9 @@ console.log("[firebaseAdmin] ENV_BUCKET_NORM =", ENV_BUCKET || "(vacío)");
 console.log("[firebaseAdmin] FALLBACK       =", FALLBACK_BUCKET);
 console.log("[firebaseAdmin] using          =", bucketName);
 console.log("[firebaseAdmin] actual bucket.name =", (bucket as any).name);
+
+// --- Compat (usado por rutas antiguas/tests): export del app y helper ---
+export { app };
+export function getAdminApp() {
+  return app;
+}

@@ -1,21 +1,32 @@
-// lib/audit.ts
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { db } from "./firebaseAdmin";
 
-export type AuditEntry = {
-  entity: "payment" | "agreement" | "cancellation" | string;
+type AuditEntry = {
+  entity: string;
   entityId: string;
-  action: "create" | "update" | "status_change" | "delete" | string;
-  by: string; // uid
-  at?: FirebaseFirestore.FieldValue; // serverTimestamp
-  diff?: Record<string, any>;
-  meta?: Record<string, any>;
+  action: string;
+  by?: string;
+  meta?: any;
+  at?: Date;
 };
 
-export async function writeAudit(entry: AuditEntry) {
-  const db = getFirestore();
-  const doc = {
+export async function writeAuditLog(entry: Omit<AuditEntry, "at">): Promise<void> {
+  await db.collection("auditLogs").add({
     ...entry,
-    at: FieldValue.serverTimestamp(), // ¡NO va dentro de un array!
-  };
-  await db.collection("auditLogs").add(doc);
+    at: new Date()
+  });
 }
+
+export async function listAuditLogs(entity: string, entityId: string, limit = 20) {
+  const snap = await db
+    .collection("auditLogs")
+    .where("entity", "==", entity)
+    .where("entityId", "==", entityId)
+    .orderBy("at", "desc")
+    .limit(limit)
+    .get();
+
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Default para compatibilidad si en algún lado se hacía import default
+export default { writeAuditLog };

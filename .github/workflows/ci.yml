@@ -1,16 +1,27 @@
 name: CI
+
 on:
   pull_request:
+    branches: [ master ]
+  push:
+    branches: [ fix/merge-clean ]
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Temporary green check
-        run: echo "Skipping tests for this PR" && exit 0
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Type check (scoped)
+        run: npx tsc --noEmit -p tsconfig.ci.json
