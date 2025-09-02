@@ -1,144 +1,134 @@
-﻿import { NextRequest } from "next/server";
-import { buildCorsHeaders, handleOptions } from "@/lib/cors";
-import { buildCancellationPdf } from "@/lib/pdf";
-import { etagForBuffer } from "@/lib/etag";
-import { uploadBufferToStorage, getV4ReadSignedUrl } from "@/lib/storage";
-import { FieldValue } from "firebase-admin/firestore";
+﻿// app/api/cancellations/[id]/docs/issue/route.ts
+import { auth, bucket, db } from "@/lib/firebaseAdmin";
+import { writeAuditLog } from "@/lib/audit";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
-export const dynamic = "force-dynamic";
+type IssueBody = {
+  templateVersion?: string;
+  notes?: string;
+};
 
-export async function OPTIONS(req: NextRequest) {
-  const origin = req.headers.get("origin") || undefined;
-  return handleOptions(origin);
+function buildCorsHeaders(req: Request): HeadersInit {
+  const origin = req.headers.get("origin") ?? "*";
+  return {
+    "vary": "Origin",
+    "access-control-allow-origin": origin,
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-headers": "authorization,content-type,if-match,if-none-match",
+    "access-control-expose-headers": "etag,content-type,content-disposition",
+    "access-control-max-age": "86400"
+  };
 }
 
-export async function POST(req: NextRequest, context: { params: { id: string } }) {
-  const origin = req.headers.get("origin") || undefined;
-  const headers = buildCorsHeaders(origin);
+async function requireUid(request: Request): Promise<string> {
+  const authz = request.headers.get("authorization") || "";
+  const m = authz.match(/^Bearer\s+(.+)$/i);
+  if (!m) {
+    throw new Response(JSON.stringify({ error: "Missing Bearer token" }), {
+      status: 401,
+      headers: { "content-type": "application/json" }
+    });
+  }
+  try {
+    const decoded = await auth.verifyIdToken(m[1]);
+    return decoded.uid;
+  } catch {
+    throw new Response(JSON.stringify({ error: "Invalid token" }), {
+      status: 401,
+      headers: { "content-type": "application/json" }
+    });
+  }
+}
+
+export async function OPTIONS(request: Request) {
+  return new Response(null, { status: 204, headers: buildCorsHeaders(request) });
+}
+
+export async function POST(request: Request, ctx: { params: { id: string } }) {
+  const headers = buildCorsHeaders(request);
 
   try {
-    const [{ requireAuth }, { db, bucket }, { writeAuditLog }] = await Promise.all([
-      import("@/lib/auth"),
-      import("@/lib/firebaseAdmin"),
-      import("@/lib/audit"),
-    ]);
-
-    const user = await requireAuth(req);
-    const cancellationId = context.params.id;
-
-    const body = await req.json().catch(() => ({}));
-    const templateVersion: string = body?.templateVersion || "v1";
-    const notes: string | undefined = body?.notes;
-
-    const ref = db.collection("cancellations").doc(cancellationId);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      return new Response(JSON.stringify({ error: "Cancellation not found", code: "not_found" }), {
-        status: 404,
-        headers: { ...headers, "Content-Type": "application/json" },
-      });
-    }
-    const c = snap.data() || {};
-
-    // === IMPORTANTE ===
-    // Para evitar índice compuesto (templateVersion + createdAt), buscamos por createdAt y filtramos en memoria por templateVersion.
-    // Esto usa solo índice de campo único (createdAt), que Firestore crea automáticamente.
-    const docsRef = ref.collection("documents");
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    const existingQ = await docsRef
-      .where("createdAt", ">", since)         // solo filtro por createdAt
-      .orderBy("createdAt", "desc")           // ordenar por el mismo campo del where => no requiere índice compuesto
-      .limit(10)
-      .get();
-
-    const firstSameTemplate = existingQ.docs
-      .map(d => ({ id: d.id, ...(d.data() as any) }))
-      .find(d => d.templateVersion === templateVersion);
-
-    if (firstSameTemplate && firstSameTemplate.path) {
-      const signed = await getV4ReadSignedUrl(firstSameTemplate.path, 15);
-      const resp = {
-        id: firstSameTemplate.id,
-        cancellationId,
-        bucket: bucket.name,
-        path: firstSameTemplate.path,
-        contentType: firstSameTemplate.contentType || "application/pdf",
-        size: firstSameTemplate.size,
-        etag: firstSameTemplate.etag,
-        templateVersion,
-        signedUrl: signed,
-        signedUrlExpiresInMinutes: 15,
-        status: "exists",
-      };
-      return new Response(JSON.stringify(resp), {
-        status: 200,
-        headers: { ...headers, "Content-Type": "application/json", ETag: `"${firstSameTemplate.etag}"` },
+    const uid = await requireUid(request);
+    const id = ctx.params?.id;
+    if (!id) {
+      return new Response(JSON.stringify({ error: "Missing cancellation id" }), {
+        status: 400,
+        headers: { ...headers, "content-type": "application/json" }
       });
     }
 
-    // Generar PDF nuevo
-    const pdfBytes = await buildCancellationPdf({
-      cancellationId,
-      caseId: c.caseId,
-      paymentId: c.paymentId,
-      requesterName: c.requester?.name || c.requesterName,
-      requesterEmail: c.requester?.email || c.requesterEmail,
-      reason: c.reason,
-      amount: c.amount,
-      currency: c.currency || "UYU",
-      createdAtISO:
-        (c.createdAt?.toDate?.() || c.createdAt || new Date()).toISOString?.() || new Date().toISOString(),
-      notes: notes || "Documento emitido.",
-      templateVersion,
+    const body = (await request.json().catch(() => ({}))) as IssueBody;
+    const templateVersion = body.templateVersion || "v1";
+    const notes = body.notes || "";
+
+    // ====== Generar PDF simple (independiente de helpers) ======
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage([595.28, 841.89]); // A4
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+
+    const title = `Cancellation ${id}`;
+    const text = [
+      `ID: ${id}`,
+      `Issued by: ${uid}`,
+      `Template: ${templateVersion}`,
+      `Notes: ${notes}`,
+      `Issued at: ${new Date().toISOString()}`
+    ].join("\n");
+
+    page.setFont(font);
+    page.setFontSize(18);
+    page.drawText(title, { x: 50, y: 780 });
+
+    page.setFontSize(12);
+    page.drawText(text, { x: 50, y: 740, lineHeight: 16 });
+
+    const pdfBytes = await pdf.save();
+
+    // ====== Subir a Storage ======
+    const ts = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z"); // 20250901T213049Z
+    const fileName = `cancellation_${id}_${ts}.pdf`;
+    const path = `cancellations/${id}/documents/${fileName}`;
+
+    const file = bucket.file(path);
+    await file.save(Buffer.from(pdfBytes), {
+      resumable: false,
+      contentType: "application/pdf",
+      metadata: { cacheControl: "private, max-age=0, no-transform" }
     });
 
-    const etag = etagForBuffer(pdfBytes);
-    const t = new Date();
-    const yyyy = String(t.getUTCFullYear());
-    const mm = String(t.getUTCMonth() + 1).padStart(2, "0");
-    const dd = String(t.getUTCDate()).padStart(2, "0");
-    const hh = String(t.getUTCHours()).padStart(2, "0");
-    const mi = String(t.getUTCMinutes()).padStart(2, "0");
-    const ss = String(t.getUTCSeconds()).padStart(2, "0");
-    const fileName = `cancellation_${cancellationId}_${yyyy}${mm}${dd}T${hh}${mi}${ss}Z.pdf`;
-    const path = `cancellations/${cancellationId}/documents/${fileName}`;
+    const [meta] = await file.getMetadata();
+    const etag = meta.etag || "";
+    const size = Number(meta.size || pdfBytes.length);
 
-    const file = await uploadBufferToStorage(path, pdfBytes, "application/pdf", {
-      cancellationId,
-      templateVersion,
-      etag,
-      createdBy: user.uid,
+    // URL firmada por 15 minutos
+    const expires = new Date(Date.now() + 15 * 60 * 1000);
+    const [signedUrl] = await file.getSignedUrl({ action: "read", expires });
+
+    // ====== Audit Log + (opcional) persistencia mínima ======
+    await writeAuditLog({
+      entity: "cancellation-doc",
+      entityId: id,
+      action: "issue",
+      by: uid,
+      meta: { path, etag, size, templateVersion }
     });
 
-    const [metadata] = await file.getMetadata();
-    const size = Number(metadata.size || pdfBytes.byteLength);
-
-    const newDoc = await ref.collection("documents").add({
+    const docRef = await db.collection("cancellationDocuments").add({
+      cancellationId: id,
       path,
-      bucket: file.bucket.name,
       contentType: "application/pdf",
       size,
       etag,
       templateVersion,
-      createdBy: user.uid,
-      createdAt: FieldValue.serverTimestamp(),
+      createdAt: new Date(),
+      createdBy: uid
     });
 
-    await writeAuditLog("cancellation.doc.issue", "cancellation", cancellationId, user.uid, {
-      documentId: newDoc.id,
-      path,
-      etag,
-      templateVersion,
-      size,
-    });
-
-    const signedUrl = await getV4ReadSignedUrl(path, 15);
-
-    const resp = {
-      id: newDoc.id,
-      cancellationId,
-      bucket: file.bucket.name,
+    // Respuesta
+    const payload = {
+      id: docRef.id,
+      cancellationId: id,
+      bucket: (bucket as any).name,
       path,
       contentType: "application/pdf",
       size,
@@ -146,19 +136,24 @@ export async function POST(req: NextRequest, context: { params: { id: string } }
       templateVersion,
       signedUrl,
       signedUrlExpiresInMinutes: 15,
-      status: "created",
+      status: "created"
     };
 
-    return new Response(JSON.stringify(resp), {
+    return new Response(JSON.stringify(payload), {
       status: 201,
-      headers: { ...headers, "Content-Type": "application/json", ETag: `"${etag}"` },
+      headers: { ...headers, "content-type": "application/json" }
     });
   } catch (err: any) {
-    const status = err?.status || 500;
-    const body = { error: err?.message || "Internal error", details: err?.details || String(err) };
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: { ...headers, "Content-Type": "application/json" },
+    // Si el error ya es un Response (por auth), devuélvelo tal cual pero con CORS
+    if (err instanceof Response) {
+      const h = new Headers(err.headers);
+      for (const [k, v] of Object.entries(buildCorsHeaders(request))) h.set(k, v as string);
+      return new Response(err.body, { status: err.status, headers: h });
+    }
+    const message = (err && err.message) || String(err);
+    return new Response(JSON.stringify({ error: "Issue failed", details: message }), {
+      status: 500,
+      headers: { ...buildCorsHeaders(request), "content-type": "application/json" }
     });
   }
 }
