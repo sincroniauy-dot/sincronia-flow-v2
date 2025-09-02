@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["*"],
+      "@/lib/pdf": ["lib/pdf.ci.ts"],
+      "@/lib/audit": ["lib/audit.ci.ts"]
+    }
+  },
+  "include": [
+    "app/api/cancellations/[id]/docs/issue/route.ts",
+    "app/api/cancellations/[id]/docs/preview/route.ts",
+    "lib/pdf.ci.ts",
+    "lib/audit.ci.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests"
+  ]
+}

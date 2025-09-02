@@ -1,16 +1,31 @@
-name: CI
+name: ci
+
 on:
   pull_request:
+    branches: [ master ]
+    paths:
+      - "app/api/cancellations/**"
+      - "lib/**"
+      - "tsconfig.ci.json"
+      - "package.json"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [ fix/merge-clean ]
+    paths:
+      - "app/api/cancellations/**"
+      - "lib/**"
+      - "tsconfig.ci.json"
+      - "package.json"
+      - ".github/workflows/ci.yml"
+
 jobs:
-  test:
+  typecheck:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Temporary green check
-        run: echo "Skipping tests for this PR" && exit 0
+          node-version: 20
+          cache: "npm"
+      - run: npm ci
+      - run: npx tsc -p tsconfig.ci.json --noEmit

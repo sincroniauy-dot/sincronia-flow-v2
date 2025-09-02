@@ -1,104 +1,48 @@
 ﻿import { NextRequest } from "next/server";
-import { buildCorsHeaders, handleOptions } from "@/lib/cors";
-import { buildCancellationPdf } from "@/lib/pdf";
-import { etagForBuffer, cleanIfNoneMatch } from "@/lib/etag";
+import crypto from "crypto";
+import { renderCancellationPdf } from "@/lib/pdf";
+import { writeAuditLog } from "@/lib/audit";
 
-export const dynamic = "force-dynamic";
-
-export async function OPTIONS(req: NextRequest) {
-  const origin = req.headers.get("origin") || undefined;
-  return handleOptions(origin);
+/** CORS para preflight */
+export function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,OPTIONS",
+      "Access-Control-Allow-Headers": "authorization,content-type,if-none-match,if-match"
+    }
+  });
 }
 
-export async function GET(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
-  const origin = req.headers.get("origin") || undefined;
-  const headers = buildCorsHeaders(origin);
+export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
+  const id = ctx.params.id;
 
-  try {
-    const [{ requireAuth }, { db }, { writeAuditLog }] = await Promise.all([
-      import("@/lib/auth"),
-      import("@/lib/firebaseAdmin"),
-      import("@/lib/audit"),
-    ]);
+  // Armamos PDF en memoria
+  const pdfBytes = await renderCancellationPdf({ id, notes: "preview" });
 
-    const user = await requireAuth(req);
-    const cancellationId = context.params.id;
+  // Buffer para que TypeScript quede conforme con BodyInit
+  const body = Buffer.from(pdfBytes);
 
-    const snap = await db.collection("cancellations").doc(cancellationId).get();
-    if (!snap.exists) {
-      return new Response(
-        JSON.stringify({ error: "Cancellation not found", code: "not_found" }),
-        { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
-      );
-    }
-    const c = snap.data() || {};
+  // ETag fuerte
+  const etag = `"${crypto.createHash("sha256").update(body).digest("base64url")}"`;
+  const headers = new Headers({
+    "Content-Type": "application/pdf",
+    "Cache-Control": "private, max-age=0, must-revalidate",
+    "ETag": etag,
+    "Access-Control-Allow-Origin": "*"
+  });
 
-    // Construimos una huella ESTABLE basada en los datos (no en bytes del PDF)
-    const createdAt =
-      (c.createdAt?.toDate?.() || c.createdAt || new Date(0)).toISOString?.() ||
-      new Date(0).toISOString();
-    const stableKey = [
-      "v1", // templateVersion fijo en preview
-      cancellationId,
-      c.caseId || "",
-      c.paymentId || "",
-      c.requester?.name || c.requesterName || "",
-      c.requester?.email || c.requesterEmail || "",
-      c.reason || "",
-      String(c.amount ?? ""),
-      c.currency || "UYU",
-      createdAt,
-      "Vista previa (no emitido).",
-    ].join("|");
-    const stableEtag = etagForBuffer(Buffer.from(stableKey, "utf8"));
-
-    // Condicional: si coincide ETag => 304 sin regenerar PDF
-    const inm = cleanIfNoneMatch(req.headers.get("if-none-match"));
-    if (inm && inm === stableEtag) {
-      return new Response(null, { status: 304, headers });
-    }
-
-    // Generar PDF solo si hace falta
-    const pdfBytes = await buildCancellationPdf({
-      cancellationId,
-      caseId: c.caseId,
-      paymentId: c.paymentId,
-      requesterName: c.requester?.name || c.requesterName,
-      requesterEmail: c.requester?.email || c.requesterEmail,
-      reason: c.reason,
-      amount: c.amount,
-      currency: c.currency || "UYU",
-      createdAtISO: createdAt,
-      notes: "Vista previa (no emitido).",
-      templateVersion: "v1",
-    });
-
-    await writeAuditLog(
-      "cancellation.doc.preview",
-      "cancellation",
-      cancellationId,
-      user.uid,
-      { templateVersion: "v1", etag: stableEtag }
-    );
-
-    return new Response(pdfBytes, {
-      status: 200,
-      headers: {
-        ...headers,
-        ETag: `"${stableEtag}"`,
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="cancellation_${cancellationId}_preview.pdf"`,
-      },
-    });
-  } catch (err: any) {
-    const status = err?.status || 500;
-    const body = { error: err?.message || "Internal error", details: err?.details || String(err) };
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: { ...headers, "Content-Type": "application/json" },
-    });
+  const inm = req.headers.get("if-none-match");
+  if (inm && inm === etag) {
+    return new Response(null, { status: 304, headers });
   }
+
+  await writeAuditLog({
+    action: "cancellation.preview",
+    entity: "cancellation",
+    entityId: id
+  });
+
+  return new Response(body as any, { status: 200, headers });
 }

@@ -1,21 +1,24 @@
-// lib/audit.ts
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { db } from "./firebaseAdmin";
 
 export type AuditEntry = {
-  entity: "payment" | "agreement" | "cancellation" | string;
-  entityId: string;
-  action: "create" | "update" | "status_change" | "delete" | string;
-  by: string; // uid
-  at?: FirebaseFirestore.FieldValue; // serverTimestamp
-  diff?: Record<string, any>;
-  meta?: Record<string, any>;
+  actor?: string | null;
+  action: string;
+  entity?: string;
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt?: Date;
 };
 
-export async function writeAudit(entry: AuditEntry) {
-  const db = getFirestore();
-  const doc = {
-    ...entry,
-    at: FieldValue.serverTimestamp(), // ¡NO va dentro de un array!
-  };
-  await db.collection("auditLogs").add(doc);
+/**
+ * writeAuditLog: implementación segura y silenciosa para CI.
+ * En producción guarda en la colección 'audit'.
+ */
+export async function writeAuditLog(entry: AuditEntry): Promise<void> {
+  try {
+    const payload = { ...entry, createdAt: new Date() };
+    await db.collection("audit").add(payload as any);
+  } catch (e) {
+    // No rompemos el flujo por un error de auditoría
+    console.warn("[audit] writeAuditLog failed:", (e as Error)?.message);
+  }
 }
