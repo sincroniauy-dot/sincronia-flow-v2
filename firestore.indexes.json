@@ -1,51 +1,11 @@
 {
   "indexes": [
     {
-      "collectionGroup": "payments",
+      "collectionGroup": "documents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "caseId", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "payments",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdBy", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "agreements",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "caseId", "order": "ASCENDING" },
+        { "fieldPath": "templateVersion", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "cancellations",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "caseId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "cases",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "paymentPromises",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "caseId", "order": "ASCENDING" },
-        { "fieldPath": "promiseDate", "order": "ASCENDING" }
       ]
     }
   ],
