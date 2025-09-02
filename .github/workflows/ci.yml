@@ -22,6 +22,6 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      # SOLO tipa lo nuevo/bueno, evita legacy
+      # SOLO type-check de lo nuevo (evita legacy)
       - name: Typecheck (tsconfig.ci.json)
         run: npx tsc -p tsconfig.ci.json --noEmit
