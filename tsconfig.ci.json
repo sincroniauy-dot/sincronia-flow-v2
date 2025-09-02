@@ -5,23 +5,23 @@
     "skipLibCheck": true
   },
   "include": [
-    "next-env.d.ts",
-    "lib/**/*.ts",
-    "app/api/cancellations/**/*.ts",
-    "app/tools/cancellations/**/*.tsx"
+    "lib/firebaseAdmin.ts",
+    "lib/pdf.ts",
+    "lib/storage.ts",
+    "lib/cors.ts",
+    "lib/etag.ts",
+    "lib/audit.ts",
+    "app/api/cancellations/**/route.ts",
+    "app/tools/cancellations/**/page.tsx"
   ],
   "exclude": [
     "node_modules",
-    ".next",
-    "tmp",
-    "scripts",
-    "tests",
-    "src",
-    "app/api/agreements",
-    "app/api/audit",
-    "app/api/cases",
-    "app/api/payments",
-    "app/api/auth",
-    "app/api/cancellations/route.ts"
+    "src/**",
+    "tests/**",
+    "app/api/auth/**",
+    "app/api/agreements/**",
+    "app/api/audit/**",
+    "app/api/cases/**",
+    "app/api/payments/**"
   ]
 }

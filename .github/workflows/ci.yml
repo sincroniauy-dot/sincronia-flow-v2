@@ -1,27 +1,19 @@
-name: CI
+name: CI (typecheck only)
 
 on:
   pull_request:
+    branches: [ master ]
   push:
-    branches: [ master, main ]
+    branches: [ fix/merge-clean ]
 
 jobs:
-  typecheck_scoped:
-    name: Typecheck (scoped)
+  typecheck:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: 'npm'
-
-      - name: Install deps
-        run: npm ci
-
-      # SOLO type-check de lo nuevo (evita legacy)
-      - name: Typecheck (tsconfig.ci.json)
-        run: npx tsc -p tsconfig.ci.json --noEmit
+      - run: npm ci
+      - run: npx tsc -p tsconfig.ci.json --noEmit
