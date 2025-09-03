@@ -1,24 +1,32 @@
-import { db } from "./firebaseAdmin";
+// lib/audit.ts
+import { db, getAdminApp } from "./firebaseAdmin";
 
-export type AuditEntry = {
-  actor?: string | null;
+type AuditEntry = {
   action: string;
   entity?: string;
   entityId?: string;
   metadata?: Record<string, unknown>;
-  createdAt?: Date;
 };
 
-/**
- * writeAuditLog: implementación segura y silenciosa para CI.
- * En producción guarda en la colección 'audit'.
- */
 export async function writeAuditLog(entry: AuditEntry): Promise<void> {
+  // Permite apagar el audit en local sin romper endpoints
+  if (process.env.AUDIT_DISABLED === "1" || process.env.AUDIT_DISABLED === "true") {
+    console.log("[audit:disabled]", entry);
+    return;
+  }
+
   try {
-    const payload = { ...entry, createdAt: new Date() };
-    await db.collection("audit").add(payload as any);
+    const app = getAdminApp();
+    if (!app || !db) {
+      console.warn("[audit] Firebase Admin no inicializado; se omite escritura");
+      return;
+    }
+
+    await db.collection("auditLogs").add({
+      ...entry,
+      ts: new Date().toISOString(),
+    });
   } catch (e) {
-    // No rompemos el flujo por un error de auditoría
-    console.warn("[audit] writeAuditLog failed:", (e as Error)?.message);
+    console.error("[audit] fallo al escribir; continúo", e);
   }
 }
