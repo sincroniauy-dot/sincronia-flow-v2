@@ -24,12 +24,11 @@
     "typescript": "^5.5.4",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4"
-  }
-}
-{
+  },
   "scripts": {
     "build": "next build",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage:rules --project crm-sincro-v2",
     "deploy:all": "npm run build && npm run deploy:rules"
   }
 }
+
