@@ -1,11 +1,11 @@
 {
   "indexes": [
     {
-      "collectionGroup": "documents",
+      "collectionGroup": "interactions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "templateVersion", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        { "fieldPath": "caseId", "order": "ASCENDING" },
+        { "fieldPath": "ts",     "order": "DESCENDING" }
       ]
     }
   ],

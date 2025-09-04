@@ -1,46 +1,9 @@
+// firestore.rules
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isAuth() {
-      return request.auth != null;
-    }
-
-    function hasRole(r) {
-      return request.auth != null &&
-             (request.auth.token.role == r ||
-              (r in (request.auth.token.roles != null ? request.auth.token.roles : [])));
-    }
-
-    // Auditoría: solo admins pueden leer; nadie puede escribir desde cliente
-    match /auditLogs/{doc} {
-      allow read: if hasRole('admin');
-      allow write: if false;
-    }
-
-    // Colecciones principales: lectura para usuarios autenticados; escritura solo vía API (Admin)
-    match /cases/{doc} {
-      allow read: if isAuth();
-      allow write: if false;
-    }
-
-    match /payments/{doc} {
-      allow read: if isAuth();
-      allow write: if false;
-    }
-
-    match /agreements/{doc} {
-      allow read: if isAuth();
-      allow write: if false;
-    }
-
-    match /cancellations/{doc} {
-      allow read: if isAuth();
-      allow write: if false;
-    }
-
-    // Denegar todo lo demás
+    // Bloqueamos todo acceso directo desde cliente (app)
+    // Tus API routes usan Admin SDK, que NO pasa por estas reglas.
     match /{document=**} {
       allow read, write: if false;
     }

@@ -1,0 +1,11 @@
+// storage.rules
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Bloquea cualquier acceso directo desde cliente.
+    // La descarga real la hacemos con Signed URLs (no usan reglas).
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

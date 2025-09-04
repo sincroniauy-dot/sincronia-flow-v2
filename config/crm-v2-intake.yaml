@@ -1,0 +1,23 @@
+version: 1.0
+brand:
+  displayName: "Sincronía"
+  legalName: "Sincronia SAS"
+  logos:
+    primary_svg: "public/brand/sincronia-op-2.svg"
+    primary_png: "public/brand/sincronia-op-3.png"
+
+i18n:
+  locale: "es-UY"
+  timezone: "America/Montevideo"
+  currency: { code: "UYU", symbol: "$", decimals: 2 }
+
+letters:
+  numberingPattern: "ISS-{dd}{MM}{yyyy}-{seq:06}"
+  pdfRetention: { stg: { value: 3, unit: months }, prod: { value: 10, unit: years } }
+  template:
+    signatoryName: "Dr. Francisco Algorta"
+    signatoryTitle: "Abogado"
+    signatoryMat: "15.597"
+    originalCreditors: []   # se cargan por seed (ver más abajo)
+
+# El catálogo/validaciones de estados-resultados está en código (no necesitas tocar aquí)

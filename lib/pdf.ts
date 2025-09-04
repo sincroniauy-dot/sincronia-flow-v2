@@ -1,81 +1,79 @@
-﻿import { PDFDocument, rgb } from "pdf-lib";
+﻿// lib/pdf.ts
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
+import fs from "fs/promises";
 import path from "path";
-import { readFile } from "fs/promises";
 
-type Args = {
-  cancellationId: string;
-  caseId?: string;
-  paymentId?: string;
-  requesterName?: string;
-  requesterEmail?: string;
-  reason?: string;
-  amount?: number;
-  currency?: string;
-  createdAtISO?: string;
+type Options = {
+  id: string;
   notes?: string;
-  templateVersion: string;
+  templateVersion?: "v1" | string;
 };
 
-let cachedFontBytes: Uint8Array | null = null;
-
-async function loadFontBytes(): Promise<Uint8Array> {
-  if (cachedFontBytes) return cachedFontBytes;
-  const fontPath =
-    process.env.PDF_FONT_PATH ||
-    path.join(process.cwd(), "lib", "fonts", "NotoSans-Regular.ttf");
-  const bytes = await readFile(fontPath);
-  cachedFontBytes = new Uint8Array(bytes);
-  return cachedFontBytes;
-}
-
-export async function buildCancellationPdf(a: Args): Promise<Uint8Array> {
+/**
+ * Genera un PDF simple (A4) con fuente Unicode (Noto Sans) si está disponible.
+ * Devuelve los bytes como Uint8Array.
+ */
+export async function renderCancellationPdf({
+  id,
+  notes = "",
+  templateVersion = "v1",
+}: Options): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
-  const fontBytes = await loadFontBytes();
-  const font = await pdf.embedFont(fontBytes, { subset: true });
 
-  const page = pdf.addPage([595.28, 841.89]); // A4
-  let y = 800;
-
-  function draw(label: string, value?: string) {
-    if (y < 80) {
-      pdf.addPage([595.28, 841.89]);
-      y = 800;
-    }
-    page.drawText(label, { x: 50, y, size: 12, font, color: rgb(0, 0, 0) });
-    y -= 16;
-    if (value) {
-      page.drawText(value, { x: 50, y, size: 12, font, color: rgb(0, 0, 0) });
-      y -= 22;
-    }
+  // Registrar fontkit para poder embeber una fuente TTF/OTF
+  // (si falla, usamos Helvetica estándar)
+  try {
+    pdf.registerFontkit(fontkit as any);
+  } catch {
+    /* ignore */
   }
 
-  // Título (misma fuente, tamaño mayor)
-  page.drawText("Documento de Cancelación", {
+  // Intentar cargar la fuente Unicode Noto Sans (incluida en el repo)
+  let customFontBytes: Uint8Array | null = null;
+  try {
+    const fontPath = path.join(process.cwd(), "lib", "fonts", "NotoSans-Regular.ttf");
+    const buf = await fs.readFile(fontPath);
+    // Buffer es un Uint8Array compatible
+    customFontBytes = buf as unknown as Uint8Array;
+  } catch {
+    customFontBytes = null;
+  }
+
+  // Embeber fuente (custom si existe, sino Helvetica)
+  const font = customFontBytes
+    ? await pdf.embedFont(customFontBytes, { subset: true })
+    : await pdf.embedFont(StandardFonts.Helvetica);
+
+  // Página A4
+  const page = pdf.addPage([595.28, 841.89]);
+  const { width, height } = page.getSize();
+
+  // Contenido
+  const title = "Cancelación de Servicio";
+  const lines = [
+    `ID: ${id}`,
+    `Notas: ${notes || "-"}`,
+    `Versión de plantilla: ${templateVersion}`,
+    `Emitido: ${new Date().toLocaleString("es-UY", { hour12: false })}`,
+  ];
+
+  // Título
+  page.drawText(title, {
     x: 50,
-    y,
-    size: 18,
+    y: height - 80,
+    size: 20,
     font,
     color: rgb(0, 0, 0),
   });
-  y -= 30;
 
-  draw("Template:", a.templateVersion);
-  draw("Cancellation ID:", a.cancellationId);
-  draw("Case ID:", a.caseId || "-");
-  draw("Payment ID:", a.paymentId || "-");
-  draw(
-    "Requester:",
-    [a.requesterName, a.requesterEmail].filter(Boolean).join(" · ") || "-"
-  );
-  draw("Reason:", a.reason || "-");
-  draw(
-    "Amount:",
-    a.amount != null ? `${a.amount} ${a.currency || ""}`.trim() : "-"
-  );
-  draw("Created at:", a.createdAtISO || new Date().toISOString());
-  draw("Notes:", a.notes || "-");
+  // Texto
+  let y = height - 120;
+  for (const line of lines) {
+    page.drawText(line, { x: 50, y, size: 12, font, color: rgb(0, 0, 0) });
+    y -= 18;
+  }
 
-  return pdf.save();
+  // Devolver bytes
+  return await pdf.save(); // Uint8Array
 }

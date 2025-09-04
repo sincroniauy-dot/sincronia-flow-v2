@@ -1,0 +1,25 @@
+{
+  "INTENCION": { "required": ["nivelIntencion","fechaSiguiente","horaSiguiente"], "optional": ["notes"] },
+  "TIT_PIDE_MAS_TARDE": { "required": ["fechaSiguiente","horaSiguiente"], "optional": ["notes"] },
+  "TERCERO_PIDE_MAS_TARDE": { "required": ["fechaSiguiente","horaSiguiente"], "optional": ["notes"] },
+  "ELEVO_A_SUPERVISOR": { "required": ["notes"], "optional": [] },
+  "NO_RECONOCE_DEUDA": { "required": ["notes"], "optional": [] },
+  "TEL_INVALIDO_LLAMADA": { "required": ["phoneId"], "optional": ["notes"] },
+  "TEL_INVALIDO_WHATSAPP": { "required": ["phoneId"], "optional": ["notes"] },
+  "NO_CONOCE_TITULAR": { "required": ["phoneId"], "optional": ["notes"] },
+  "FALLECIDO": { "required": [], "optional": ["pdfDefuncion"] },
+  "ADMIN_INGRESO_DATOS": { "required": [], "optional": ["notes"] },
+
+  "PROMESA_DE_PAGO": {
+    "variants": {
+      "CONTADO": ["montoPromesa","fechaPromesa","comentarios"],
+      "ENTREGA_CONVENIO": ["entregaMonto","entregaFecha","cuotasTotales","montoCuota","segundaCuotaVence","comentarios"],
+      "PAGOS_A_CUENTA": ["entregaMonto","entregaFecha","pagosACuentaTotales","montoPorPago","segundaCuotaVence","comentarios"]
+    }
+  },
+  "CONFIRMA_HABER_PAGO": { "required": [], "optional": ["notes"] },
+
+  "PROMESA_PAGO_DE_CUOTA": { "required": ["conceptoCuota"], "optional": ["notes"] },
+  "CONFIRMA_PAGO_DE_CUOTA": { "required": [], "optional": ["notes"] },
+  "CANCELA_CONVENIO": { "required": ["todasLasCuotas","montoPromesa","fechaPromesa"], "optional": ["notes"] }
+}
